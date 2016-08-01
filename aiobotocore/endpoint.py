@@ -5,6 +5,8 @@ import aiohttp
 import botocore.retryhandler
 import botocore.endpoint
 
+from aiosocks.connector import SocksConnector
+
 from aiohttp.client_reqrep import ClientResponse
 from botocore.endpoint import EndpointCreator, Endpoint, DEFAULT_TIMEOUT
 from botocore.exceptions import EndpointConnectionError, ConnectionClosedError
@@ -122,7 +124,7 @@ class AioEndpoint(Endpoint):
     def __init__(self, host,
                  endpoint_prefix, event_emitter, proxies=None, verify=True,
                  timeout=DEFAULT_TIMEOUT, response_parser_factory=None,
-                 loop=None, connector_args=None):
+                 loop=None, connector_args=None, socks_connector_args=None):
 
         super().__init__(host, endpoint_prefix,
                          event_emitter, proxies=proxies, verify=verify,
@@ -135,7 +137,18 @@ class AioEndpoint(Endpoint):
             self._conn_timeout = self._read_timeout = timeout
 
         self._loop = loop or asyncio.get_event_loop()
-        if connector_args is None:
+        if socks_connector_args:
+            if connector_args is None:
+                connector = SocksConnector(loop=self._loop,
+                                           keepalive_timeout=12,
+                                           conn_timeout=self._conn_timeout,
+                                           **socks_connector_args)
+            else:
+                connector = SocksConnector(loop=self._loop,
+                                           conn_timeout=self._conn_timeout,
+                                           **connector_args,
+                                           **socks_connector_args)
+        elif connector_args is None:
             # AWS has a 20 second idle timeout:
             #   https://forums.aws.amazon.com/message.jspa?messageID=215367
             # aiohttp default timeout is 30s so set something reasonable here
@@ -269,7 +282,7 @@ class AioEndpointCreator(EndpointCreator):
     def create_endpoint(self, service_model, region_name=None,
                         endpoint_url=None, verify=None,
                         response_parser_factory=None, timeout=DEFAULT_TIMEOUT,
-                        connector_args=None):
+                        connector_args=None, socks_connector_args=None):
 
         if not is_valid_endpoint_url(endpoint_url):
             raise ValueError("Invalid endpoint: %s" % endpoint_url)
@@ -282,4 +295,5 @@ class AioEndpointCreator(EndpointCreator):
             verify=self._get_verify_value(verify),
             timeout=timeout,
             response_parser_factory=response_parser_factory, loop=self._loop,
-            connector_args=connector_args)
+            connector_args=connector_args,
+            socks_connector_args=socks_connector_args)

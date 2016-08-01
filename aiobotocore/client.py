@@ -88,17 +88,20 @@ class AioClientCreator(botocore.client.ClientCreator):
 
         if isinstance(client_config, AioConfig):
             connector_args = client_config.connector_args
+            socks_connector_args = client_config.socks_connector_args
         else:
             connector_args = None
+            socks_connector_args = None
 
-        new_config = AioConfig(connector_args, **config_kwargs)
+        new_config = AioConfig(connector_args, socks_connector_args, **config_kwargs)
         endpoint_creator = AioEndpointCreator(event_emitter, self._loop)
         endpoint = endpoint_creator.create_endpoint(
             service_model, region_name=endpoint_config['region_name'],
             endpoint_url=endpoint_config['endpoint_url'], verify=verify,
             response_parser_factory=self._response_parser_factory,
             timeout=(new_config.connect_timeout, new_config.read_timeout),
-            connector_args=new_config.connector_args)
+            connector_args=new_config.connector_args,
+            socks_connector_args=new_config.socks_connector_args)
 
         return {
             'serializer': serializer,

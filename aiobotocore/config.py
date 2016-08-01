@@ -6,7 +6,7 @@ from botocore.exceptions import ParamValidationError
 
 class AioConfig(botocore.client.Config):
 
-    def __init__(self, connector_args=None, **kwargs):
+    def __init__(self, connector_args=None, socks_connector_args=None, **kwargs):
         super().__init__(**kwargs)
 
         self._validate_connector_args(connector_args)
@@ -20,6 +20,11 @@ class AioConfig(botocore.client.Config):
             # and aiohttp default timeout is 30s so we set it to something
             # reasonable here
             self.connector_args['keepalive_timeout'] = 12
+
+        self._validate_socks_connector_args(socks_connector_args)
+        self.socks_connector_args = copy.copy(socks_connector_args)
+        if not self.socks_connector_args:
+            self.cocks_connector_args = dict()
 
     def merge(self, other_config):
         # Adapted from parent class
@@ -57,3 +62,27 @@ class AioConfig(botocore.client.Config):
             else:
                 raise ParamValidationError(
                     report='invalid connector_arg:{}'.format(k))
+
+    @staticmethod
+    def _validate_socks_connector_args(socks_connector_args):
+        if socks_connector_args is None:
+            return
+
+        for k, v in socks_connector_args.items():
+            if k in ['remove_resolve']:
+                if not isinstance(v, bool):
+                    raise ParamValidationError(
+                        report='{} value must be a boolean'.format(k))
+            if k in ['proxy_auth']:
+                from aiohttp.helpers import BasicAuth
+                if not isinstance(v, BasicAuth):
+                    raise ParamValidationError(
+                        report='{} value must be a BasicAuth instance'.format(k))
+            if k in ['proxy']:
+                from aiosocks.helpers import SocksAddr
+                if not isinstance(v, SocksAddr):
+                    raise ParamValidationError(
+                        report='{} value must be a string'.format(k))
+            else:
+                raise ParamValidationError(
+                    report='invalid socks_connector_arg:{}'.format(k))
